@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Dinakar AI Chat</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #1e293b, #0f172a, #020617);
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #e2e8f0;
+}
+
+.chat-wrapper {
+  width: 100%;
+  max-width: 720px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(18px);
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  padding: 20px;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 10px;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: white;
+}
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding-right: 5px;
+}
+
+.msg-row {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.msg-row.user {
+  justify-content: flex-end;
+}
+
+.bubble {
+  max-width: 75%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  line-height: 1.5;
+}
+
+.user .bubble {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+}
+
+.ai .bubble {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* INPUT */
+.input-area {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+#input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 999px;
+  border: none;
+  outline: none;
+}
+
+#send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: #6366f1;
+  color: white;
+  cursor: pointer;
+}
+
+/* CODE BLOCK */
+.code-block {
+  margin-top: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #020617;
+}
+
+.code-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: #1e293b;
+  font-size: 12px;
+}
+
+.copy-btn {
+  cursor: pointer;
+  background: none;
+  border: 1px solid #555;
+  color: #ccc;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+pre {
+  margin: 0;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+.inline-code {
+  background: #1e293b;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+/* TYPING */
+.typing {
+  display: flex;
+  gap: 4px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  background: #aaa;
+  border-radius: 50%;
+  animation: bounce 1.2s infinite;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+</style>
+</head>
+
+<body>
+
+<div class="chat-wrapper">
+  <div class="chat-header">
+    <div class="avatar">D</div>
+    <div>
+      <h3>Dinakar AI</h3>
+      <small>Ask anything</small>
+    </div>
+  </div>
+
+  <div id="messages"></div>
+
+  <div class="input-area">
+    <input id="input" placeholder="Type your message..." />
+    <button id="send-btn" onclick="send()">➤</button>
+  </div>
+</div>
+
+<script>
+const COPY_ICON = "Copy";
+const CHECK_ICON = "Copied";
+
+/* COMMAND DETECTION */
+function isCommand(line) {
+  return /^(npm|npx|node|mvn|gradle|java|javac|python|pip|docker|kubectl|git|curl|wget|cd|ls|mkdir|rm|cp|mv|echo|cat)\b/.test(line.trim());
+}
+
+/* COPY */
+function copyToClipboard(btn, text) {
+  navigator.clipboard.writeText(text);
+  btn.innerText = CHECK_ICON;
+  setTimeout(() => btn.innerText = COPY_ICON, 1500);
+}
+
+/* CREATE CODE BLOCK */
+function createCodeBlock(code, lang="bash") {
+  const block = document.createElement("div");
+  block.className = "code-block";
+
+  const header = document.createElement("div");
+  header.className = "code-header";
+
+  const label = document.createElement("span");
+  label.innerText = lang;
+
+  const btn = document.createElement("button");
+  btn.className = "copy-btn";
+  btn.innerText = COPY_ICON;
+  btn.onclick = () => copyToClipboard(btn, code);
+
+  header.appendChild(label);
+  header.appendChild(btn);
+
+  const pre = document.createElement("pre");
+  pre.innerText = code;
+
+  block.appendChild(header);
+  block.appendChild(pre);
+
+  return block;
+}
+
+/* RENDER CONTENT */
+function renderContent(text) {
+  const container = document.createElement("div");
+  const parts = text.split(/(```[\s\S]*?```)/g);
+
+  parts.forEach(part => {
+    if (part.startsWith("```") && part.endsWith("```")) {
+      const code = part.slice(3, -3).trim();
+      container.appendChild(createCodeBlock(code, "code"));
+    } else {
+      const lines = part.split("\n");
+
+      lines.forEach(line => {
+        if (!line.trim()) return;
+
+        if (isCommand(line)) {
+          container.appendChild(createCodeBlock(line));
+          return;
+        }
+
+        const p = document.createElement("p");
+
+        const inlineRegex = /`([^`]+)`/g;
+        let last = 0, match;
+
+        while ((match = inlineRegex.exec(line))) {
+          p.appendChild(document.createTextNode(line.slice(last, match.index)));
+
+          const code = document.createElement("code");
+          code.className = "inline-code";
+          code.innerText = match[1];
+
+          p.appendChild(code);
+          last = match.index + match[0].length;
+        }
+
+        p.appendChild(document.createTextNode(line.slice(last)));
+        container.appendChild(p);
+      });
+    }
+  });
+
+  return container;
+}
+
+/* ADD MESSAGE */
+function addMessage(text, type) {
+  const msg = document.createElement("div");
+  msg.className = "msg-row " + type;
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  if (type === "ai") {
+    bubble.appendChild(renderContent(text));
+  } else {
+    bubble.innerText = text;
+  }
+
+  msg.appendChild(bubble);
+  document.getElementById("messages").appendChild(msg);
+
+  document.getElementById("messages").scrollTop =
+    document.getElementById("messages").scrollHeight;
+}
+
+/* TYPING */
+function showTyping() {
+  const row = document.createElement("div");
+  row.className = "msg-row ai";
+  row.id = "typing";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble typing";
+
+  bubble.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+
+  row.appendChild(bubble);
+  document.getElementById("messages").appendChild(row);
+}
+
+function removeTyping() {
+  const t = document.getElementById("typing");
+  if (t) t.remove();
+}
+
+/* SEND API CALL */
+async function send() {
+  const input = document.getElementById("input");
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMessage(text, "user");
+  input.value = "";
+  showTyping();
+
+  try {
+    const res = await fetch("/ai/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(text)
+    });
+
+    const data = await res.text();
+
+    removeTyping();
+    addMessage(data, "ai");
+
+  } catch (e) {
+    removeTyping();
+    addMessage("Something went wrong. Please try again.", "ai");
+  }
+}
+
+/* ENTER KEY */
+document.getElementById("input").addEventListener("keydown", e => {
+  if (e.key === "Enter") send();
+});
+</script>
+
+</body>
+</html>
